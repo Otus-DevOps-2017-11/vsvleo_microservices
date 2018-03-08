@@ -115,3 +115,25 @@ $ docker login
 $ docker tag reddit:latest <your-login>/otus-reddit:1.0
 $ docker push <your-login>/otus-reddit:1.0
 ```
+
+---
+
+### Домашнее задание 16
+Сборка ui начинается не с первых слоев,т.к
+первые слои берутся из кеша, сформированных ранее при создании других образов.
+#### Запуск контейнеров с переопределение переменных ENV в строке запуска
+Запуск БД, назначаем алиас host_db, этот алиас используем в параметрах задаваемых переменных, при запуске других образов
+```docker run -d --network=reddit --network-alias=host_db mongo:latest ```
+Задаем новый алиас и указываем в переменной алиас БД
+```docker run -d --network=reddit --network-alias=test_post -e "POST_DATABASE_HOST=host_db" vsvleo/post:1.0```
+Задаем новый алиас и указываем в переменной алиас БД
+```docker run -d --network=reddit --network-alias=test_comment -e "COMMENT_DATABASE_HOST=host_db" vsvleo/comment:1.0```
+В Переменных указываем алиасы на приложения post и comment
+```docker run -d --network=reddit -p 9292:9292 -e "POST_SERVICE_HOST=test_post" -e "COMMENT_SERVICE_HOST=test_comment" vsvleo/ui:1.0```
+#### Что было сделано
+На инстансе в GCP были развернуты docker контейнеры с БД, с самим приложением и двумя вспомагательными.<br/>
+Для сохранения БД при перезапуске контейнера, был добавлен volumes
+```
+docker run -d --network=reddit --network-alias=host_db -v reddit_db:/data/db mongo:latest
+```
+Для уменьшения размера образа, был заменен начальный образ, на образ меньшего размера ubuntu:16.04
