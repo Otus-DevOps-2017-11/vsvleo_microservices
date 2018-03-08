@@ -1,0 +1,13 @@
+REPOSITORY               TAG                 IMAGE ID            CREATED             SIZE
+vsvleo/ubuntu-tmp-file   latest              c7eca0a2d65c        54 seconds ago      112MB
+ubuntu                   16.04               0458a4468cbc        4 weeks ago         112MB
+ubuntu                   latest              0458a4468cbc        4 weeks ago         112MB
+hello-world              latest              f2a91732366c        3 months ago        1.85kB
+
+Т.к. контейнер появляется на основе образа, то в выводе inspect я увидел:
+
+- image (образ) содержит описание контейнера (ОС, архитектура, размер образа), дату создания, параметры запуска, 
+перечисляются слои.
+
+- container (контейнер) содержит текущий статус, хеш номер образа, из которого он запущен, основные
+настройки при которых он был запущен, настройки хоста, сетевые настройки.
