@@ -137,3 +137,95 @@ $ docker push <your-login>/otus-reddit:1.0
 docker run -d --network=reddit --network-alias=host_db -v reddit_db:/data/db mongo:latest
 ```
 Для уменьшения размера образа, был заменен начальный образ, на образ меньшего размера ubuntu:16.04
+
+---
+
+### Домашнее задание 17
+#### вопросы
+Вывод команд ssh и exec не отличается, т.к. использует тот же интерфейс что и хост. Через ssh мы смотрим сетевой интерфейс на хосте. Через
+ exec - смотрим сетевой интерфейс внутри контейнера.<br/>
+
+docker run --network host -d nginx - При запуске несколько раз, docker удаляет все вновь созданные контейнеры, возможно из-за уже используемых 
+портов в самом первом контейнере.
+
+При использовании host остается только default сеть, а при использовании none создается как бы персональная сеть для каждого контейнера
+
+Связь между контейнерами можно организовать как через алиас, к примеру "--network-alias post", так и через имя контейнера "--name post"
+
+Выводит список docker сетей
+```
+$ docker network ls
+NETWORK ID          NAME                DRIVER              SCOPE
+5082968d9f22        back_net            bridge              local
+609679119e04        bridge              bridge              local
+50594f276b4a        front_net           bridge              local
+d07ad0cd0db3        host                host                local
+2ff095298e80        none                null                local
+```
+
+back_net и front_net имеют теже итендификаторы, что и ID docker network, только с приставкой "br-"
+```
+$ docker-machine ssh docker-host 'ifconfig | grep br'
+br-50594f276b4a Link encap:Ethernet  HWaddr 02:42:3e:78:03:0c
+br-5082968d9f22 Link encap:Ethernet  HWaddr 02:42:ce:92:9b:dc
+```
+
+Пример вывода сетевого стека для front_net
+```
+$ docker-machine ssh docker-host 'brctl show br-50594f276b4a'
+bridge name     bridge id               STP enabled     interfaces
+br-50594f276b4a         8000.02423e78030c       no              veth41536f2
+                                                        veth9a627a9
+                                                        vethf29a6c3
+```
+
+Маршрутизация трафика
+```
+$ docker-machine ssh docker-host 'sudo iptables -v -nL -t nat'
+. . .
+Chain POSTROUTING (policy ACCEPT 458 packets, 27692 bytes)
+ pkts bytes target     prot opt in     out     source               destination
+   24  1528 MASQUERADE  all  --  *      !br-50594f276b4a  10.0.1.0/24          0.0.0.0/0
+  266 18198 MASQUERADE  all  --  *      !br-5082968d9f22  10.0.2.0/24          0.0.0.0/0
+  479 29203 MASQUERADE  all  --  *      !docker0  172.17.0.0/16        0.0.0.0/0
+    0     0 MASQUERADE  tcp  --  *      *       10.0.1.2             10.0.1.2             tcp dpt:9292
+
+Chain DOCKER (2 references)
+ pkts bytes target     prot opt in     out     source               destination
+    0     0 RETURN     all  --  br-50594f276b4a *       0.0.0.0/0            0.0.0.0/0
+    0     0 RETURN     all  --  br-5082968d9f22 *       0.0.0.0/0            0.0.0.0/0
+    0     0 RETURN     all  --  docker0 *       0.0.0.0/0            0.0.0.0/0
+    5   280 DNAT       tcp  --  !br-50594f276b4a *       0.0.0.0/0            0.0.0.0/0            tcp dpt:9292 to:10.0.1.2:9292
+```
+
+Посмотреть запущен процес docker-proxy и его PID 
+```
+$ docker-machine ssh docker-host 'ps ax | grep docker-proxy'
+. . .
+25948 ?        Sl     0:00 /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 9292 -container-ip 10.0.1.2 -container-port 9292
+```
+
+Так же посмотреть какие контейнеры подключены к данной сети, например к front_net:
+```
+$ docker network inspect front_net
+```
+
+И аналогичным образом можно посмотреть какие сетевые службы использует указанный контейнер:
+```
+$ docker inspect post
+```
+
+#### docker-compose
+
+
+Связь между контейнерами оссуществляется по имени сервиса в docker-compose.yml файле
+```
+docker ps
+CONTAINER ID        IMAGE                COMMAND                  CREATED             STATUS              PORTS                    NAMES
+f92d03c4e759        vsvleo/ui:1.0        "puma"                   9 minutes ago       Up 9 minutes        0.0.0.0:9292->9292/tcp   redditmicroservices_ui_1
+dd99f9fd9305        mongo:3.2            "docker-entrypoint.s…"   9 minutes ago       Up 9 minutes        27017/tcp                redditmicroservices_post_db_1
+fd559b14d180        vsvleo/post:1.0      "python3 post_app.py"    9 minutes ago       Up 9 minutes                                 redditmicroservices_post_1
+4ce42cd78937        vsvleo/comment:1.0   "puma"                   9 minutes ago       Up 9 minutes                                 redditmicroservices_comment_1
+```
+
+Префикс имени запущенных контейнеров указывается в файле .env в параметре COMPOSE_PROJECT_NAME
