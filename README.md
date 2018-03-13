@@ -123,13 +123,21 @@ $ docker push <your-login>/otus-reddit:1.0
 первые слои берутся из кеша, сформированных ранее при создании других образов.
 #### Запуск контейнеров с переопределение переменных ENV в строке запуска
 Запуск БД, назначаем алиас host_db, этот алиас используем в параметрах задаваемых переменных, при запуске других образов
-```docker run -d --network=reddit --network-alias=host_db mongo:latest ```
+```
+docker run -d --network=reddit --network-alias=host_db mongo:latest 
+```
 Задаем новый алиас и указываем в переменной алиас БД
-```docker run -d --network=reddit --network-alias=test_post -e "POST_DATABASE_HOST=host_db" vsvleo/post:1.0```
+```
+docker run -d --network=reddit --network-alias=test_post -e "POST_DATABASE_HOST=host_db" vsvleo/post:1.0
+```
 Задаем новый алиас и указываем в переменной алиас БД
-```docker run -d --network=reddit --network-alias=test_comment -e "COMMENT_DATABASE_HOST=host_db" vsvleo/comment:1.0```
+```
+docker run -d --network=reddit --network-alias=test_comment -e "COMMENT_DATABASE_HOST=host_db" vsvleo/comment:1.0
+```
 В Переменных указываем алиасы на приложения post и comment
-```docker run -d --network=reddit -p 9292:9292 -e "POST_SERVICE_HOST=test_post" -e "COMMENT_SERVICE_HOST=test_comment" vsvleo/ui:1.0```
+```
+docker run -d --network=reddit -p 9292:9292 -e "POST_SERVICE_HOST=test_post" -e "COMMENT_SERVICE_HOST=test_comment" vsvleo/ui:1.0
+```
 #### Что было сделано
 На инстансе в GCP были развернуты docker контейнеры с БД, с самим приложением и двумя вспомагательными.<br/>
 Для сохранения БД при перезапуске контейнера, был добавлен volumes
@@ -229,3 +237,51 @@ fd559b14d180        vsvleo/post:1.0      "python3 post_app.py"    9 minutes ago 
 ```
 
 Префикс имени запущенных контейнеров указывается в файле .env в параметре COMPOSE_PROJECT_NAME
+
+---
+
+### Домашнее задание 19
+Разворачиваем инстанс
+```
+docker-machine create --driver google    --google-project docker-196714 \
+  --google-zone europe-west2-b  --google-disk-size 50  --google-machine-type n1-standard-1 \
+  --google-machine-image $(gcloud compute images list --filter ubuntu-1604-lts --uri)    gitlab-ci
+```
+Создаем docker-compose.yml
+
+Настройки в web интерфейсе (группа, проект)
+
+Создаем структуру каталогов на инстансе
+mkdir -p /srv/gitlab/config /srv/gitlab/data /srv/gitlab/logs
+
+Добавляем наш проект на инстанс gitlab
+```
+git checkout -b docker-6
+git remote add gitlab http://35.189.66.166/homework/example.git
+git push gitlab docker-6
+```
+Добавляем пайплайн, коммитим и отправляем на инстанс
+```
+git add .gitlab-ci.yml
+git commit -m 'add pipeline definition'
+git push gitlab docker-6
+```
+Запускаем runner на инстансе
+```
+docker run -d --name gitlab-runner --restart always \
+-v /srv/gitlab-runner/config:/etc/gitlab-runner \
+-v /var/run/docker.sock:/var/run/docker.sock \
+gitlab/gitlab-runner:latest
+```
+Регистрируем runner
+```
+docker exec -it gitlab-runner gitlab-runner register
+```
+Скачиваем и добавляем reddit на сервер
+```
+git clone https://github.com/express42/reddit.git && rm -rf ./reddit/.git
+git add reddit/
+git commit -m “Add reddit app”
+git push gitlab docker-6
+```
+Настраиваем пайплайн для тестирования, вносим изменения в .gitlab-ci.yml
