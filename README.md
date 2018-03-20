@@ -285,3 +285,47 @@ git commit -m “Add reddit app”
 git push gitlab docker-6
 ```
 Настраиваем пайплайн для тестирования, вносим изменения в .gitlab-ci.yml
+
+---
+
+### Домашнее задание 21
+Настройка фаервола
+```
+gcloud compute firewall-rules create prometheus-default --allow tcp:9090
+gcloud compute firewall-rules create puma-default --allow tcp:9292
+```
+
+Указываем рабочий проект
+```
+$ export GOOGLE_PROJECT=docker-196714
+```
+
+Запускаем инициализацию инстанса vm1
+```
+$ docker-machine create --driver google \
+--google-machine-image https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts \
+--google-machine-type n1-standard-1 vm1
+```
+
+Привязываем docker к инстансу vm1
+```
+eval $(docker-machine env vm1)
+```
+
+Устанавливает на инстансе prometeus
+```
+docker run --rm -p 9090:9090 -d --name prometheus prom/prometheus:v2.1.0
+```
+Или выполняем собственную сборку, необходимые файлы находятся в папке /monitoring/prometheus<br/>
+В файле prometheus.yml описаны правила для слежения за сервисами, в нашем случае мы отслеживаем четыре сервиса: 
+доступ на docker контенеры:
+```
+comment:9292/metrics
+node-exporter:9100/metrics # собирает информацию о работе docker хоста
+localhost:9090/metrics # сам prometheus
+ui:9292/metrics
+```
+После изменения сервисов в файле prometheus.yml и сборки образа, у меня отрабатывала команда docker-compose up -d,
+без остановки всех контейнеров.
+
+Образы на DockerHub: https://hub.docker.com/u/vsvleo/
