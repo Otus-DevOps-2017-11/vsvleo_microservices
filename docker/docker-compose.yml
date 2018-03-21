@@ -15,22 +15,16 @@ services:
       - ${PORT_WEB:-9292}:9292/tcp
     networks:
       - reddit
-#        aliases:
-#          - ui
 
   post:
     image: ${USERNAME}/post:${VERSION_POST}
     networks:
       - reddit
-#        aliases:
-#          - post
 
   comment:
     image: ${USERNAME}/comment:${VERSION_COMMENT}
     networks:
       - reddit
-#        aliases:
-#          - comment
 
   prometheus:
     image: ${USERNAME}/prometheus
