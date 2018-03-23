@@ -350,3 +350,48 @@ ui:9292/metrics
 без остановки всех контейнеров.
 
 Образы на DockerHub: https://hub.docker.com/u/vsvleo/
+
+---
+
+### Домашнее задание 23
+Создаем инстанс vm1
+```
+$ docker-machine create --driver google \
+    --google-machine-image https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts \
+    --google-machine-type n1-standard-1 vm1
+```
+
+Открываем порт для cAdvisor
+```
+$ gcloud compute firewall-rules create cadvisor-default --allow tcp:8080
+```
+
+Открывает порт для grafana
+```
+$ gcloud compute firewall-rules create grafana-default --allow tcp:3000
+```
+
+Меняем метрику на первом графике, дополнительно убрал из графика вывод параметра path со значением "/metrics", 
+т.к. они не меняются, а идут постоянно:
+```
+rate(ui_request_count{path!="/metrics"}[1m])
+```
+
+позже переделал на вывод графика, только корневого пути:
+```
+rate(ui_request_count{path="/"}[1m])
+```
+
+Добавление сервиса alertmanager, открываем порт:
+```
+$ gcloud compute firewall-rules create alertmanager-default --allow tcp:9093
+```
+
+Проверка вебхука с помощью curl:
+```
+curl -X POST \
+--data-urlencode 'payload={"text": "This is posted to #general and comes from *monkey-bot*.", "channel": "#general", "link_names": 1, "username": "monkey-bot", "icon_emoji": ":monkey_face:"}' \
+ https://hooks.slack.com/services/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
+```
+Если вебхук работает, то в ответ придет "ОК".
+
