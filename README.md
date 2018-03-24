@@ -390,7 +390,7 @@ $ gcloud compute firewall-rules create alertmanager-default --allow tcp:9093
 Проверка вебхука с помощью curl:
 ```
 curl -X POST \
---data-urlencode 'payload={"text": "This is posted to #general and comes from *monkey-bot*.", "channel": "#general", "link_names": 1, "username": "monkey-bot", "icon_emoji": ":monkey_face:"}' \
+--data-urlencode 'payload={"text": "This is posted to #general and comes from *monkey-bot*.", "channel": "#vsvleo-webhook", "link_names": 1, "username": "monkey-bot", "icon_emoji": ":monkey_face:"}' \
  https://hooks.slack.com/services/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
 ```
 Если вебхук работает, то в ответ придет "ОК".
