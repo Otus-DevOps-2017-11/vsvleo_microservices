@@ -1,7 +1,12 @@
-version: '3'
+version: '3.3'
 services:
+
   post_db:
     image: mongo:3.2
+    deploy:
+      placement:
+        constraints:
+          - node.labels.reliability == high
     volumes:
       - post_db:/data/db
     networks:
@@ -9,38 +14,83 @@ services:
         aliases:
           - post_db
           - comment_db
+
+
   ui:
     image: ${USERNAME}/ui:${VERSION_UI}
-    depends_on:
-     - fluentd
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.role == worker
+      update_config:
+        delay: 5s
+        parallelism: 1
+        failure_action: rollback
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 150M
+      restart_policy: 
+        condition: on-failure 
+        max_attempts: 3
+        delay: 3s
     ports:
       - ${PORT_WEB:-9292}:9292/tcp
     networks:
       - reddit
-    logging:
-      driver: "fluentd"
-      options:
-        fluentd-address: localhost:24224
-        tag: service.ui
+    environment:
+      - ENV=DEV
+
 
   post:
     image: ${USERNAME}/post:${VERSION_POST}
-    depends_on:
-     - fluentd
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == worker
+      update_config:
+        delay: 10s
+        parallelism: 2
+        failure_action: rollback
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 300M
+      restart_policy: 
+        condition: on-failure 
+        max_attempts: 10
+        delay: 1s
     networks:
       - reddit
     ports:
       - "5000:5000"
-    logging:
-      driver: "fluentd"
-      options:
-        fluentd-address: localhost:24224
-        tag: service.post
 
   comment:
     image: ${USERNAME}/comment:${VERSION_COMMENT}
+    deploy:
+      mode: replicated
+      replicas: 3
+      placement:
+        constraints:
+          - node.role == worker
+      update_config:
+        delay: 10s
+        parallelism: 2
+        failure_action: rollback
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 300M
+      restart_policy: 
+        condition: on-failure 
+        max_attempts: 10
+        delay: 1s
     networks:
       - reddit
+
 
 volumes:
   post_db:
