@@ -410,3 +410,110 @@ $ docker-compose -f docker-compose-logging.yml -f docker-compose.yml up -d
     depends_on:
      - fluentd
 ```
+
+---
+
+### Домашнее задание 27
+Выполнил построение master-1, worker-1, worker-2 нод
+```
+docker-machine create --driver google \
+   --google-project  docker-196714 \
+   --google-zone europe-west1-b \
+   --google-machine-type g1-small \
+   --google-machine-image $(gcloud compute images list --filter ubuntu-1604-lts --uri) \
+master-1 # или worker-1 или worker-2
+```
+Подключил сессию: eval $(docker-machine env master-1)<br/>
+Войдя на мастер ноду (docker-machine ssh master-1), проинициализировал swarm, построив кластер (docker swarm init), 
+на выходе получил команду для привязки рабочих нод к мастеру (содержит токен и IP адрес мастер ноды). Которую запустил на каждой рабочей ноде. <br/>
+Спомощью следующей команды можно сгенерировать новый токен
+```docker swarm join-token manager```
+Проверка Состояния кластера
+```
+docker node ls
+```
+Запуск сервисов на кластере, объединяя их в стек
+```
+docker stack deploy --compose-file=<(docker-compose -f docker-compose.yml config 2>/dev/null) DEV
+```
+где DEV - это имя стека<br/>
+
+Отобразить состояние стека. Выводится информация: имена сервисов, виды масштабирования, текущее состояние масштабирования, и по аналогии 
+с командой (docker ps) выводится имя образа и разрешенные порты
+```
+docker stack services DEV
+```
+Создал метку для мастер ноды
+```
+docker node update --label-add reliability=high master-1
+```
+Команда для просмотра меток на нодах
+```
+docker node ls -q | xargs docker node inspect   -f '{{ .ID }} [{{ .Description.Hostname }}]: {{ .Spec.Labels }}'
+```
+Посмотреть распределение сервисов по нодам
+```
+docker stack ps DEV
+```
+Масштабирование сервисов, команды на выбор:
+```
+docker service scale DEV_ui=3
+docker service update --replicas 3 DEV_ui
+docker service update --replicas 0 DEV_ui
+```
+Состояние сервисов до организации 3-ей рабочей ноды
+```
+ID                  NAME                                          IMAGE                        NODE                DESIRED STATE       CURRENT STATE
+emytf37tul29        DEV_node-exporter.jayjmjb1tbfdxsoclxkyczon2   prom/node-exporter:v0.15.0   worker-2            Running             Running 29 seconds ago
+yr28i9u36voa        DEV_node-exporter.7ycjc9pdwlz5ppg1oo91z0og9   prom/node-exporter:v0.15.0   worker-1            Running             Running 28 seconds ago
+mmsivpcv3cw1        DEV_node-exporter.bsznkvtsu66wfxz0k6bjuaju9   prom/node-exporter:v0.15.0   master-1            Running             Running 30 seconds ago
+n7x8leqj9zm3        DEV_comment.1                                 vsvleo/comment:latest        worker-1            Running             Running 20 seconds ago
+py1sjmx3o18b        DEV_ui.1                                      vsvleo/ui:latest             worker-1            Running             Running 11 minutes ago
+o7dupjn5r097        DEV_post_db.1                                 mongo:3.2                    master-1            Running             Running 11 minutes ago
+xqzbcrkkgmto        DEV_post.1                                    vsvleo/post:latest           worker-2            Running             Running 11 minutes ago
+5r1vp83aminn        DEV_comment.2                                 vsvleo/comment:latest        worker-2            Running             Running 16 seconds ago
+tj0yksc7ftqx        DEV_post.2                                    vsvleo/post:latest           worker-1            Running             Running 8 minutes ago
+dfv815qgkvwm        DEV_ui.2                                      vsvleo/ui:latest             worker-2            Running             Running 8 minutes ago
+```
+После создания 3-ей рабочей ноды в нее добавился только сервис node-exporter, а после увеличения числа реплик микросервисов, произошло распределение 
+сервисов на данную ноду
+```
+ID                  NAME                                          IMAGE                        NODE                DESIRED STATE       CURRENT STATE
+yzdd1qashzlx        DEV_node-exporter.mkmgcul5hhnguon6l3n2utoox   prom/node-exporter:v0.15.0   worker-3            Running             Running 2 minutes ago
+emytf37tul29        DEV_node-exporter.jayjmjb1tbfdxsoclxkyczon2   prom/node-exporter:v0.15.0   worker-2            Running             Running 10 minutes ago
+yr28i9u36voa        DEV_node-exporter.7ycjc9pdwlz5ppg1oo91z0og9   prom/node-exporter:v0.15.0   worker-1            Running             Running 10 minutes ago
+mmsivpcv3cw1        DEV_node-exporter.bsznkvtsu66wfxz0k6bjuaju9   prom/node-exporter:v0.15.0   master-1            Running             Running 10 minutes ago
+n7x8leqj9zm3        DEV_comment.1                                 vsvleo/comment:latest        worker-1            Running             Running 9 minutes ago
+py1sjmx3o18b        DEV_ui.1                                      vsvleo/ui:latest             worker-1            Running             Running 21 minutes ago
+o7dupjn5r097        DEV_post_db.1                                 mongo:3.2                    master-1            Running             Running 21 minutes ago
+xqzbcrkkgmto        DEV_post.1                                    vsvleo/post:latest           worker-2            Running             Running 20 minutes ago
+5r1vp83aminn        DEV_comment.2                                 vsvleo/comment:latest        worker-2            Running             Running 9 minutes ago
+tj0yksc7ftqx        DEV_post.2                                    vsvleo/post:latest           worker-1            Running             Running 17 minutes ago
+dfv815qgkvwm        DEV_ui.2                                      vsvleo/ui:latest             worker-2            Running             Running 18 minutes ago
+mgypfiy70bp2        DEV_post.3                                    vsvleo/post:latest           worker-3            Running             Assigned 6 seconds ago
+c1kpaniezvcb        DEV_comment.3                                 vsvleo/comment:latest        worker-3            Running             Preparing 10 seconds ago
+0gs0vy35llwp        DEV_ui.3                                      vsvleo/ui:latest             worker-3            Running             Preparing 13 seconds ago
+kturm1kr1riw        DEV_post.4                                    vsvleo/post:latest           worker-2            Running             Running 5 seconds ago
+rmgmwosjjcu9        DEV_comment.4                                 vsvleo/comment:latest        worker-3            Running             Preparing 10 seconds ago
+zewvuv5erdvk        DEV_ui.4                                      vsvleo/ui:latest             worker-3            Running             Preparing 13 seconds ago
+```
+
+Запуск сервисов с нескольких docker-compose файлов
+```
+docker stack deploy --compose-file=<(docker-compose -f docker-compose.monitoring.yml -f docker-compose.yml config 2>/dev/null) DEV
+```
+Вывод состояния сервисов
+```
+ID                  NAME                MODE                REPLICAS            IMAGE                             PORTS
+mbgpillnng55        DEV_alertmanager    replicated          1/1                 vsvleo/alertmanager:latest        *:9093->9093/tcp
+zjieud4zk17g        DEV_cadvisor        replicated          1/1                 google/cadvisor:v0.29.0           *:8080->8080/tcp
+p1wds8e0nn5o        DEV_comment         replicated          4/4                 vsvleo/comment:latest
+mkz6to9ok5xz        DEV_grafana         replicated          1/1                 grafana/grafana:5.0.0             *:3000->3000/tcp
+niy1kver3qdd        DEV_node-exporter   replicated          4/4                 prom/node-exporter:v0.15.0
+z5e3br860sp1        DEV_post            global              3/3                 vsvleo/post:latest                *:5000->5000/tcp
+ij1qgwli7y94        DEV_post_db         replicated          1/1                 mongo:3.2
+o6vcc5onu4tc        DEV_prometheus      replicated          1/1                 vsvleo/prometheus:latest          *:9090->9090/tcp
+s1tousy7r95e        DEV_ui              replicated          3/3                 vsvleo/ui:latest                  *:9292->9292/tcp
+951sif3k657e        DEV_viz             replicated          1/1                 dockersamples/visualizer:latest   *:8081->8080/tcp
+```
+Для графического отображения состояния нод, добавил сервис visualizer.

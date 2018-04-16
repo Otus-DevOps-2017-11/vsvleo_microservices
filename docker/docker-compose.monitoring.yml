@@ -1,0 +1,129 @@
+version: '3.3'
+services:
+  prometheus:
+    image: ${USERNAME}/prometheus
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+      restart_policy:
+        condition: on-failure
+        max_attempts: 10
+        delay: 1s
+    networks:
+      - reddit
+    ports:
+      - '9090:9090'
+    volumes:
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention=1d'
+
+  node-exporter:
+    image: prom/node-exporter:v0.15.2
+    deploy:
+      mode: global
+    networks:
+      - reddit
+    user: root
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($$|/)"'
+
+  cadvisor:
+    image: google/cadvisor:v0.29.0
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+      restart_policy:
+        condition: on-failure
+        max_attempts: 10
+        delay: 1s
+    networks:
+      - reddit
+    volumes:
+      - '/:/rootfs:ro'
+      - '/var/run:/var/run:rw'
+      - '/sys:/sys:ro'
+      - '/var/lib/docker/:/var/lib/docker:ro'
+    ports:
+      - '8080:8080'
+
+  grafana:
+    image: grafana/grafana:5.0.0
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+      restart_policy:
+        condition: on-failure
+        max_attempts: 10
+        delay: 1s
+    networks:
+      - reddit
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=secret
+    depends_on:
+      - prometheus
+    ports:
+      - 3000:3000
+
+  alertmanager:
+    image: ${USERNAME}/alertmanager
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+      restart_policy:
+        condition: on-failure
+        max_attempts: 10
+        delay: 1s
+    networks:
+      - reddit
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+    ports:
+      - 9093:9093
+
+  viz:
+    image: dockersamples/visualizer
+    ports:
+      - 8081:8080
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 10
+        delay: 1s
+      placement:
+        constraints:
+          - node.labels.reliability == high
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - reddit
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  reddit:
